@@ -13,3 +13,8 @@ for repo in repos.values():
                           stdin=sp.PIPE,
                           stderr=sp.PIPE)
     stdout, stderr = gitprocess.communicate()
+
+bashprocess = sp.Popen(repos['Bash'] + '/setup.sh',
+                        stdout=sp.PIPE,
+                        stderr=sp.PIPE)
+stdout, stderr = bashprocess.communicate()
