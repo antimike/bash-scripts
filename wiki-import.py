@@ -1,6 +1,7 @@
 #!/bin/env python3
 # from BeautifulSoup import BeautifulSoup
 from collections import namedtuple
+from functools import wraps
 # from subprocess import Popen, PIPE
 # import asyncio, pexpect
 import shlex, urllib
@@ -39,121 +40,102 @@ Operator = namedtuple('Operator', ['get_state', 'reducer', 'mods'])
 
 class Func:
     @staticmethod
-    def Print(*args, start=25*'-', end=25*'-'):
-        print(start)
-        for arg in args:
-            print(arg)
-        print(end)
-        return args
+    def Print(wrapped_fn=None, start=25*'-', end=25*'-', info=None):
+        info = info or wrapped_fn.__name__
+        def wrapper(*args):
+            print(start)
+            if info is not None:
+                print(info)
+            for arg in args:
+                print(arg)
+            print(end)
+            return args
+        ret = Func(wrapper)
+        return ret if not callable(wrapped_fn) else ret.compose_left(Func.unspread(wrapped_fn))
     @staticmethod
-    def Const(const, expect_spread=True):
-        return Func(lambda *args: const)
+    def Const(const):
+        return Func(lambda arg: const)
     @staticmethod
-    def Id(expect_spread=True):
-        return Func(lambda *args: args, expect_spread=expect_spread)
+    def Id():
+        return Func(lambda arg: arg)
     @staticmethod
-    def _match_spread(internal, expect_spread=False, accept_spread=True):
-        if not (expect_spread^accept_spread):
-            return internal
-        elif expect_spread:
-            return lambda *args: internal(list(args))
-        elif accept_spread:
-            return lambda args: internal(*args)
+    def wrap_take_first(fn):
+        return Func(Func.take_first(Func.take_first(fn)))
+    @staticmethod
+    def take_first(fn):
+        @wraps(fn)
+        def wrapped(it):
+            return fn(list(it)[0]) if any(it) else f()
+        return wrapped
+    @staticmethod
+    def wrap_unspread(fn):
+        return Func(Func.unspread(Func.unspread(fn)))
+    @staticmethod
+    def unspread(fn):
+        @wraps(fn)
+        def wrapped(arg):
+            return fn(*arg)
+        return wrapped
     def print(self, start=25*'-', end=25*'-'):
-        self.compose_left(Func.Print)
+        self.compose_left(Func.Print(start, end)).compose_right(Func.Print(start, end))
         return self
-    def __init__(self, fn, accept_spread=True, expect_spread=True):
-        # if expect_spread:
-            # _fn = lambda 
-        self._fns = [Func._match_spread(fn, accept_spread=accept_spread, expect_spread=False)]
-        self._spread_args = expect_spread
-    def _match_spread_right(self, f, accept_spread):
-        return Func._match_spread(f, expect_spread=self._spread_args, accept_spread=accept_spread)
-    def _match_spread_left(self, f, accept_spread):
-        return Func._match_spread(f, expect_spread=False, accept_spread=accept_spread)
-    def map_args(self, mp):
-        return self.compose_right(lambda args: map(mp, *args), accept_spread=False)
-    def compose_right(self, mp, accept_spread=True):
-        self._fns.insert(0, self._match_spread_right(mp, accept_spread))
+    def __init__(self, fn):
+        self._fns = [fn]
+    def map_args(self, mp, eval=True):
+        ret = self.compose_right(lambda args: map(mp, args))
+        return ret.compose_left(list) if eval else ret
+    def compose_right(self, mp):
+        self._fns.insert(0, mp)
         return self
-    def compose_left(self, mp, accept_spread=True, expect_spread=False):
-        self._fns.append(Func._match_spread(mp, accept_spread=accept_spread, expect_spread=expect_spread))
+    def compose_left(self, mp):
+        self._fns.append(mp)
         return self
     def parallel_with(self, *others):
-        for other in others:
-            other._spread_args = self._spread_args
-        _others = [Func._match_spread(other, expect_spread=self._spread_args, accept_spread=other._spread_args)
-                   for other in others]
-        internal = lambda *args: list([self(*args), *[other(*args) for other in _others]])
-        return Func(internal, accept_spread=self._spread_args, expect_spread=self._spread_args)
+        return Func(lambda *args: [self(*args), *[other(*args) for other in others]])
     def spread(self):
-        self._spread_args = True
+        self.compose_right(Func.Id())
         return self
-    def unspread(self):
-        self._spread_args = False
-        return self
-    def iterate_over(self, generator, accept_spread=True, debug=False):
-        if callable(generator):
-            _g = Func._match_spread(
-                generator, accept_spread=accept_spread, expect_spread=self._spread_args)
-        else:
-            _g = Func.Const(generator, expect_spread=self._spread_args)
-        def wrapped(*args):
+    def gather(self):
+        return Func.unspread(self)
+    def iterate_over(self, generator):
+        if not callable(generator):
+            generator = Func.Const(generator)
+        @wraps(self)
+        def wrapped(args):
             ret = []
-            items = _g(*args)
-            if debug:
-                Func.Print([], end='')
+            items = generator(args)
             while True:
                 try:
-                    ret.append(n := self(next(items)))
-                    if debug:
-                        Func.Print(n, start='', end='')
+                    ret.append(self(next(items)))
                 except StopIteration:
                     break
-            if debug:
-                Func.Print([], end='')
             return ret
-        return Func(wrapped, expect_spread=self._spread_args, accept_spread=self._spread_args)
+        return Func(wrapped)
     def __call__(self, *args):
-        # initial = self._fns[0]
-        # tail = self._fns[1:]
-        if not self._spread_args:
-            if len(args) > 1:
-                raise Exception("Too many arguments provided")
-        # args = initial(args)
         for f in self._fns:
             args = f(args)
         return args
 
 
+split_tags('a b c')
+split_tags(test_tags)
+list(Func.unspread(iter)([test_tags]))
+split_tags = Func(Func.unspread(str.split)).compose_left(set)\
+    .iterate_over(Func.unspread(iter)).compose_left(Func.unspread(set.union))
+
+add_tags = Func(Func.unspread(Func.Print(wrapped_fn=set.update, info='Set update:')))\
+    .map_args(Func.Print(wrapped_fn=split_tags, info='Split tags:'), eval=False)\
+    .map_args(Func.Print(wrapped_fn=lambda opts: opts.tags, info='Project opts:').gather(), eval=False)
+
+Func.wrap_unspread(set.update).print().map_args(split_tags).print()(test_tags, test_update)
+
+test_tags = {'a', 'b c', 'd e f'}
+test_update = {'g h', 'i'}
 test_opts = Opts({'boopy', 'shadoopy boo'}, {'title': 'awesomesauce'})
 test_opts.tags
-add_tags(test_opts, Opts.from_tags('gah'))
-remove_tags(test_opts, Opts.from_tags('gah', 'shadoopy'))
-
-
-split_tags = Func(str.split, expect_spread=True, accept_spread=True)\
-    .compose_left(set, accept_spread=True, expect_spread=True)\
-    .iterate_over(iter, accept_spread=True, debug=False)\
-    .compose_left(set.union, accept_spread=True)
-
-add_tags({1, 2, 3}, {2, 3, 4, 5})
-add_tags = Func(set.update, accept_spread=True, expect_spread=True).print()\
-    .compose_right(split_tags, accept_spread=True).print()\
-    .map_args(lambda opts: opts.tags).print()
-    # .map_args(Func.Print)
-add_tags = Func(Func.Print).compose_left(add_tags)
-
-split_tags._fns[0](['boo'])
-split_tags._spread_args
-args = ['boo']
-
-# add_tags = Func(set.update).map_args(split_tags).map_args(lambda opts: opts.tags)
-# remove_tags = Func(set.difference_update).map_args(lambda opts: opts.tags)
-# add_attrs = Func(dict.update).map_args(lambda opts: opts.attrs)
-# remove_attrs = Func(dict.pop
-# remove_one_attr = Func(dict.pop).compose_right(lambda d, k: (d, k, None)).compose_right(lambda opts, k: (opts.attrs, k))
-# remove_attrs = remove_one_attr.iterate_over(lambda old, new: ((old, k) for k in new.attrs.keys()))
+add_tags(test_opts, Opts.from_tags('yay!'))
+add_tags(test_tags, {1, 2, 3})
+add_tags._fns
 
 test_opts.attrs
 gen_fn = Func(lambda old, new: iter(new.attrs.keys()))
