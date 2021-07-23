@@ -1,0 +1,32 @@
+cheatsheets:
+comments:
+deprecates:
+description:
+docs:
+enablers:
+enables:
+installers:
+language:
+logfile:
+name:
+scheduled:
+size:
+  source:
+  bin:
+snippets:
+source:
+tags:
+timestamps:
+  scheduled:
+  installed:
+  invoked:
+  upgraded:
+  removed:
+  modified:
+type:
+url:
+version:
+aliases:
+config:
+  rc:
+  source:

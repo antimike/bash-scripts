@@ -1,0 +1,50 @@
+[
+  {
+    "type": "vim",
+    "id": "'padde/jump.vim'",
+    "install-mods": "",
+    "name": "jump.vim",
+    "timestamp": "Fri Jul 16 04:47:39 UTC 2021",
+    "comments": "Autojump integration for vim"
+  },
+  {
+    "type": "vim",
+    "id": "'antoinemadec/coc-fzf'",
+    "install-mods": "",
+    "name": "coc-fzf",
+    "timestamp": "Fri Jul 16 04:56:23 UTC 2021",
+    "comments": "FZF integration for coc.nvim"
+  },
+  {
+    "type": "vim",
+    "id": "'yuki-yano/fzf-preview.vim'",
+    "install-mods": "{ 'branch': 'release/remote', 'do': ':UpdateRemotePlugins' }",
+    "name": "fzf-preview.vim",
+    "timestamp": "Fri Jul 16 05:06:50 UTC 2021",
+    "comments": "Alternative to fzf.vim"
+  },
+  {
+    "type": "coc-nvim",
+    "id": "coc-fzf-preview",
+    "install-mods": "",
+    "name": "coc-fzf-preview",
+    "timestamp": "Fri Jul 16 05:03:43 UTC 2021",
+    "comments": "FZF plugin for coc.nvim...alternative to fzf.vim?"
+  },
+  {
+    "type": "cargo",
+    "id": "tabwriter",
+    "install-mods": "",
+    "name": "tabwriter",
+    "timestamp": "Fri Jul 16 06:58:01 UTC 2021",
+    "comments": "Implements elastic tabstops both as a Rust library and as a CLI"
+  },
+  {
+    "type": "apt",
+    "id": "csvkit",
+    "install-mods": "csvkit-doc",
+    "name": "csvkit",
+    "timestamp": "Fri Jul 16 01:06:15 MDT 2021",
+    "comments": "Another CLI tool for manipulating tabular data"
+  }
+]

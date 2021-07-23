@@ -1,0 +1,7 @@
+type;id;install-mods;name;timestamp;comments
+vim;'padde/jump.vim';;jump.vim;Fri Jul 16 04:47:39 UTC 2021;Autojump integration for vim
+vim;'antoinemadec/coc-fzf';;coc-fzf;Fri Jul 16 04:56:23 UTC 2021;FZF integration for coc.nvim
+vim;'yuki-yano/fzf-preview.vim';{ 'branch': 'release/remote', 'do': ':UpdateRemotePlugins' };fzf-preview.vim;Fri Jul 16 05:06:50 UTC 2021;Alternative to fzf.vim
+coc-nvim;coc-fzf-preview;;coc-fzf-preview;Fri Jul 16 05:03:43 UTC 2021;FZF plugin for coc.nvim...alternative to fzf.vim?
+cargo;tabwriter;;tabwriter;Fri Jul 16 06:58:01 UTC 2021;Implements elastic tabstops both as a Rust library and as a CLI
+apt;csvkit;csvkit-doc;csvkit;Fri Jul 16 01:06:15 MDT 2021;Another CLI tool for manipulating tabular data
