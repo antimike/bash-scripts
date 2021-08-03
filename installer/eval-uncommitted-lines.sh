@@ -17,26 +17,28 @@ die() {
     printf "$@" && echo && exit 1 || exit -1
 }
 
-usage() {
-    cat <<-"USAGE"
+underline() {
+    local text="$1"
+    local replacement="${2:-=}"
+    printf '%s\n' "$text" "$(tr [:graph:] [${replacement}*] <<< ${text})"
+}
 
-	eval-uncommitted-lines.sh
-	=========================
+usage() {
+    local -i status=$1
+    cat <<-USAGE
 	
-	SUMMARY: 
-	--------
+	$(underline "${__NAME__}" =)
+	$(underline SUMMARY -)
 	Simple script to help with planning, logging, and installing software packages
 	in "batches", using a designated install-file to record install commands and git
 	to track which lines have been executed.
 	
-	USAGE:
-	------
+	$(underline USAGE -)
 	eval-uncommitted-lines.sh [-f file] [-o output] [-i] [-q] [-D]
 	
-	OPTIONS:
-	--------
+	$(underline OPTIONS -)
 	    -f      File to read commands from
-	            Defaults to $INSTALLED
+	            Defaults to \$INSTALLED if set
 	    -o      File to write output to
 	            stdout is used if none is specified
 	    -i      Interactively edit commands before executing
