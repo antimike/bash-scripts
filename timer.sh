@@ -13,6 +13,8 @@
 # option.|
 # -B |No beep|
 
+# TODO: Add option to allow "silent" or long-term timers using `at`
+
 __FILE__="$(realpath "${BASH_SOURCE[0]}")"
 __DIR__="$(dirname "${__FILE__}")"
 SPEAK_SCR="${__DIR__}/speak.sh"
