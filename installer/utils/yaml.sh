@@ -20,12 +20,17 @@ _yaml_usage() {
     return 0
 }
 
+#######################################
+## READER functions
+#######################################
+
 _get_yaml_from_text() {
     # PASS prelim
     sed -n '/---/,/\.\.\./p' <<< "$*"
 }
 
 _get_yaml_from_file() {
+    # PASS prelim
     # Gets YAML text between start-of-doc sigil "---" and end-of-doc "..."
     # Assumes one YAML doc per file
     local text="$(cat "$1")"
@@ -44,22 +49,6 @@ _get_yaml_from_files() {
         results+=( "$(_get_yaml_from_file "$file")" )
     done
     return $?
-}
-
-_yaml_indent_text() {
-    local -i level=1
-    if [ "$1" = "-n" ]; then
-        shift && level="$1" && shift ||
-            return -1
-    fi
-    sed 's/^/  /' <<< "$*"
-}
-
-_yaml_insert_dict_elem_file() {
-    # Inserts text at a given "address" in the passed YAML doc
-    local file="$1" && shift
-    local keys="$2" && shift
-    
 }
 
 _yaml_get_dict_elem_linenos_text() {
@@ -110,56 +99,6 @@ _yaml_get_dict_elem_linenos_file() {
     return $?
 }
 
-_yaml_update_dict_elem_text() {
-    # PASS prelim
-    local yaml="$1"
-    local keys="$2"
-    local subst="$3"
-    local range="$(_yaml_get_dict_elem_linenos_text "$yaml" "$keys")" ||
-        return $?
-    local -i start=${range%%,*}
-    local indent="$(sed -n "${start}p" <<< "$yaml" | 
-        sed "s/^\(\s*\)[^\s].*$/\1/")"
-    let start-=1    # We want to "append", not "insert" (because an insert
-                    # requires addressing a line that may no longer exists)
-    subst="$(sed "s/^/${indent}/" <<< "$subst")"
-    debug "indent = '$indent'"
-    debug_vars range start subst
-    sed "${range}d" <<< "$yaml" | sed "${start}a\\${subst}" 2>/dev/null
-}
-
-_yaml_update_dict_elem_file() {
-    # PASS prelim
-    local yaml="$(_get_yaml_from_file "$1")"
-    if [ $? -eq 0 ]; then
-        _yaml_update_dict_elem_text "$yaml" "$2" "$3"
-    fi
-    return $?
-}
-
-_yaml_insert_dict_elem_text() {
-    :
-}
-
-_yaml_insert_addr_elem_text() {
-    # Inserts text at a given "address" in the passed YAML text
-    local yaml="$1"
-    local keys="$2"
-    local key=
-    local -i status=0
-    debug_vars key keys
-    while [ -n "$keys" ] && [ $status -eq 0 ]; do
-        keys="${keys#:}"        # Remove leading :
-        key="${keys%%:*}"       # Get leading key from stack
-        keys="${keys#${key}}"   # Remove leading key from stack
-        yaml="$(_yaml_insert_dict_elem_text "$yaml" "$key")"
-        debug_vars key keys yaml
-        status=$?
-    done
-    echo "$yaml"
-    return $status
-}
-
 _yaml_get_dict_elem_from_file() {
     local yaml="$(_get_yaml_from_file "$1")"
     if [ $? -eq 0 ]; then
@@ -169,6 +108,7 @@ _yaml_get_dict_elem_from_file() {
 }
 
 _yaml_get_dict_elem_from_text() {
+    # PASS prelim
     # Gets YAML elements associated to a dict key
     # Assumes the key is at the top level or in a top-level array
     local text="$1"
@@ -216,6 +156,120 @@ _yaml_get_addr_elem_from_file() {
     fi
     return $?
 }
+
+#######################################
+## WRITER functions
+#######################################
+
+_yaml_indent_text() {
+    local -i level=1
+    if [ "$1" = "-n" ]; then
+        shift && level="$1" && shift ||
+            return -1
+    fi
+    sed 's/^/  /' <<< "$*"
+}
+
+_yaml_print_array() {
+    # PASS prelim
+    # Prints all passed args as a top-level YAML array
+    printf -- '- %s\n' "$@"
+}
+
+_yaml_print_bash_map() {
+    # FAIL prelim
+    local -n map="$1"
+    debug_vars map
+    for key in "${!map[@]}"; do
+        printf '%s:\n%s\n' "$key" "$(sed 's/^/  /' <<< "${map[$key]}")"
+    done
+}
+
+_yaml_substitute_file_contents() {
+    # PASS prelim
+    # Replaces all text between the YAML markers --- and ... with the passed
+    # substitute text
+    local file="$1"
+    local yaml="$(sed 's/$/\\/' <<< "$2")"  # Escape newlines for sed
+    sed -n -e 'p' -e "/---/eecho '$yaml'" -e '/---/ba' \
+        -e ':a;/\.\.\./{p;b};$q1;n;ba' "$file"
+}
+
+_yaml_append_dict_elem_text() {
+    local yaml="$1"
+    local keys="$2"
+    local append="$3"
+    local existing=
+}
+
+_yaml_update_dict_elem_text() {
+    # PASS prelim
+    local yaml="$1"
+    local keys="$2"
+    local subst="$3"
+    local range="$(_yaml_get_dict_elem_linenos_text "$yaml" "$keys")" ||
+        return $?
+    local -i start=${range%%,*}
+    local indent="$(sed -n "${start}p" <<< "$yaml" | 
+        sed "s/^\(\s*\)[^\s].*$/\1/")"
+    let start-=1    # We want to "append", not "insert" (because an insert
+                    # requires addressing a line that may no longer exists)
+    subst="$(sed "s/^/${indent}/" <<< "$subst")"
+    debug "indent = '$indent'"
+    debug_vars range start subst
+    sed "${range}d" <<< "$yaml" | sed "${start}a\\${subst}" 2>/dev/null
+}
+
+_yaml_update_dict_elem_file() {
+    # PASS prelim
+    local yaml="$(_get_yaml_from_file "$1")"
+    if [ $? -eq 0 ]; then
+        _yaml_update_dict_elem_text "$yaml" "$2" "$3"
+    fi
+    return $?
+}
+
+_yaml_insert_addr_elem_text() {
+    # Inserts text at a given "address" in the passed YAML text
+    local yaml="$1"
+    local keys="$2"
+    local key=
+    local -i status=0
+    debug_vars key keys
+    while [ -n "$keys" ] && [ $status -eq 0 ]; do
+        keys="${keys#:}"        # Remove leading :
+        key="${keys%%:*}"       # Get leading key from stack
+        keys="${keys#${key}}"   # Remove leading key from stack
+        yaml="$(_yaml_insert_dict_elem_text "$yaml" "$key")"
+        debug_vars key keys yaml
+        status=$?
+    done
+    echo "$yaml"
+    return $status
+}
+
+_yaml_insert_dict_elem_file() {
+    # Inserts text at a given "address" in the passed YAML doc
+    local file="$1" && shift
+    local keys="$2" && shift
+    
+}
+
+_yaml_addr_ensure() {
+    :
+}
+
+_yaml_addr_append() {
+    :
+}
+
+_yaml_addr_update() {
+    :
+}
+
+#######################################
+## main
+#######################################
 
 main() {
     if [ -n "${DEBUG+x}" ]; then
