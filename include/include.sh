@@ -154,10 +154,9 @@ notify() {
         esac
         shift
     done
-    # echo $tabindent
     local prefix="$(_repeat $tabindent "	")$(_repeat $indent " ")"
-    # printf "'%s'\n" "$prefix" "$(_repeat $tabindent "	")"
-    printf "${prefix}${template}" "$@" && return 0 || return -1
+    printf "${template}" "$@" | sed "s/^/${prefix}/" &&
+        return 0 || return -1
 }
 
 error() {
@@ -218,7 +217,10 @@ debug_vars() {
         for var in "$@"; do
             val="${!var}"
             if [ $(wc -l <<< "$val") -gt 1 ]; then
-                val="$(sed -e '1i\\' -e 's/^/  /' <<< "$val")"
+                val="$(
+                    sed -e '1i\\' <<< "$val" | 
+                        sed -e '1!s/^/|  /'
+                                            )"
             fi
             lines+=( "$var = ${val}" )
         done
