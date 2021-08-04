@@ -50,6 +50,7 @@ __INCLUDE_FILE__="$(get_path "${BASH_SOURCE[0]}")"
 __INCLUDE_DIR__="$(dirname "${__INCLUDE_FILE__}")"
 __INCLUDE_NAME__="$(basename "${__INCLUDE_FILE__}")"
 __DEBUG__="${DEBUG+x}"
+__DEBUG_DEPTH__="${DEBUG_MAXDEPTH:-1}"
 
 # String templates
 typeset -A _string_templates=(
@@ -188,15 +189,19 @@ debug() {
                 ;;
             *) ;;
         esac
-        local source="${BASH_SOURCE[$(( 1 + offset ))]}"
-        local func="${FUNCNAME[$(( 1 + offset ))]}"
-        local lineno="${BASH_LINENO[$(( 0 + offset ))]}"
+        if (( ${#FUNCNAME[@]} - 3 - offset > __DEBUG_DEPTH__ )); then
+            return $status
+        else
+            local source="${BASH_SOURCE[$(( 1 + offset ))]}"
+            local func="${FUNCNAME[$(( 1 + offset ))]}"
+            local lineno="${BASH_LINENO[$(( 0 + offset ))]}"
 
-        # Debug header
-        echo "DEBUG: ${source} --> ${func} @${lineno}:"
+            # Debug header
+            echo "DEBUG: ${source} --> ${func} @${lineno}:"
 
-        # Use `error` to print formatted messages to stderr
-        error -i 4 "$@"
+            # Use `error` to print formatted messages to stderr
+            error -i 4 "$@"
+        fi
     fi
     return $status      # To make sure return status isn't "masked" by
                         # successful debug calls
