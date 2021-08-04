@@ -8,27 +8,10 @@
 
 shopt -s extglob
 
-__INCLUDE_FILE__="$(get_path "${BASH_SOURCE[0]}")"
-__INCLUDE_DIR__="$(dirname "${__INCLUDE_FILE__}")"
-__INCLUDE_NAME__="$(basename "${__INCLUDE_FILE__}")"
-__DEBUG__="${DEBUG+x}"
-
-# These vars are set in the function _get_file_info.
-unset export_name
-unset export_file
-unset export_dir
-
-# String templates
-typeset -A _string_templates=(
-    [UNKNOWN_OPT]='_unknown_opt'
-)
-
-_unknown_opt() {
-    # Template for "unknown opt" errortext
-    echo "Unknown option '%s' encountered in function ${FUNCNAME[2]}"
-}
-
-_get_file_info
+# These vars are set in the function _get_file_info
+export_name=
+export_file=
+export_dir=
 
 get_path() {
     local file="$*"
@@ -43,20 +26,137 @@ get_path() {
     return $?
 }
 
+_get_script_name() {
+    local file="$(get_path "${BASH_SOURCE[2]}")"
+    local basename="$(basename "${file}")"
+    sed 's/\s/_/g' <<< "${basename%%.*}" | tr [a-z] [A-Z]
+}
+
+_get_file_info() {
+    # Sets global variables for internal use by the calling script
+    local file="$(get_path "${BASH_SOURCE[2]}")"
+    local dir="$(dirname "${file}")"
+    local basename="$(basename "${file}")"
+    local name="$(sed 's/\s/_/g' <<< "${basename%%.*}" | tr [a-z] [A-Z])"
+    typeset -n export_name="__${name}_NAME__"
+    typeset -n export_dir="__${name}_DIR__"
+    typeset -n export_file="__${name}_FILE__"
+    export_name="$basename"
+    export_dir="$dir"
+    export_file="$file"
+}
+
+__INCLUDE_FILE__="$(get_path "${BASH_SOURCE[0]}")"
+__INCLUDE_DIR__="$(dirname "${__INCLUDE_FILE__}")"
+__INCLUDE_NAME__="$(basename "${__INCLUDE_FILE__}")"
+__DEBUG__="${DEBUG+x}"
+
+# String templates
+typeset -A _string_templates=(
+    [UNKNOWN_OPT]='_unknown_opt'
+    [VARS]='_prettyprint_vars'
+)
+
+_prettyprint_vars() {
+    # Template for prettyprinting the values of variables
+    # Mostly useful for debugging
+    # Unfortunately, I don't think this will work with the current template
+    # strategy
+    # TODO: Think of a way to implement this
+    echo "Not implemented" >&2
+}
+
+_unknown_opt() {
+    # Template for "unknown opt" errortext
+    echo "Unknown option '%s' encountered in function '${FUNCNAME[3]}'\n"
+}
+
+_get_file_info
+
+_repeat() {
+    # Repeats a string N times
+    local -i n="$1" && shift
+    local text="$*"
+    local template="${text}%.0s"
+    if [ $n -gt 0 ]; then
+        printf "$template" $(eval "echo {1..$n}")
+    elif [ $n = 0 ]; then
+        printf ''
+    else
+        debug BAD_ARG $n
+        return -1
+    fi
+    return $?
+}
+
+_underline() {
+    local replacement='='
+    local -i caps=0
+    while getopts "r:c:C" opt; do
+        case "$opt" in
+            r|c)      # (r)eplacement / (c)haracter
+                replacement="${OPTARG:0:1}"
+                echo ${replacement} >&2
+                ;;
+            C)         # (C)apitalize
+                caps=1
+                ;;
+            *)
+                debug UNKNOWN_OPT "$opt"
+                ;;
+        esac
+    done
+    shift $(( OPTIND - 1 )) && OPTIND=1
+    local text="$*"
+    if [ $caps -eq 1 ]; then
+        text="$(tr [a-z] [A-Z] <<< "$text")"
+    fi
+
+    cat <<-UNDERLINE
+	$*
+	$(tr [:print:] [${replacement}*] <<< "$*")
+	UNDERLINE
+}
+
 notify() {
     # Print message to stdout
     # If first argument is recognized as a template name, that template is
     # passed to printf
     # Option -t can also be used to force template specification
     # TODO: Support ANSI codes (colors, text formatting, etc.)
+    # TODO: Debug tabindent issues (tabindent arg doesn't work for reasons that
+    # are extremely mysterious)
     local template='%s\n'
-    if [ -n "${temp_fn=${_string_templates[$1]}}" ]; then
-        template="$($temp_fn)"
+    local -i indent=0
+    local -i tabindent=0
+    while [ $# -gt 0 ]; do
+        unset temp_fn
+        if [ -n "${temp_fn=${_string_templates["$1"]}}" ]; then
+            template="$($temp_fn)" && shift && continue
+        fi
+        case "$1" in
+            -t)
+                shift && template="$1"
+                ;;
+            -i)
+                shift && indent="$1"
+                ;;
+            -I)
+                shift && tabindent="$1"
+                ;;
+            --)
+                shift && break
+                ;;
+            *)
+                break
+                ;;
+        esac
         shift
-    elif [ "$1" = "-t" ]; then
-        shift && template="$1" && shift
-    fi
-    printf "$template" "$@" && return 0 || return -1
+    done
+    # echo $tabindent
+    local prefix="$(_repeat $tabindent "	")$(_repeat $indent " ")"
+    # printf "'%s'\n" "$prefix" "$(_repeat $tabindent "	")"
+    printf "${prefix}${template}" "$@" && return 0 || return -1
 }
 
 error() {
@@ -79,31 +179,43 @@ debug() {
     local -i status=$?
     if [ -n "${DEBUG+x}" ]; then
         local -i offset=0
+        local format='%s\n'
         case "$1" in
             --offset=*)
-                let offset+="${1#--offset=}" && shift || return -1
+                let offset+="${1#--offset=}" 2>/dev/null || 
+                    echo "DEBUG: Bad callstack offset passed to 'debug'" >&2 &&
+                shift
                 ;;
             *) ;;
         esac
         local source="${BASH_SOURCE[$(( 1 + offset ))]}"
         local func="${FUNCNAME[$(( 1 + offset ))]}"
         local lineno="${BASH_LINENO[$(( 0 + offset ))]}"
+
+        # Debug header
         echo "DEBUG: ${source} --> ${func} @${lineno}:"
-        printf '    %s\n' "$@"
+
+        # Use `error` to print formatted messages to stderr
+        error -i 4 "$@"
     fi
     return $status      # To make sure return status isn't "masked" by
                         # successful debug calls
-} >&2
+}
 
 debug_vars() {
     # Pretty-prints the values of passed variable names to stderr, along with a
     # standard debug message including the source filename, function name, and
     # line number
     local -i status=$?
+    local val=
     if [ -n "${DEBUG+x}" ]; then
         local -a lines=( )
         for var in "$@"; do
-            lines+=( "$var = ${!var}" )
+            val="${!var}"
+            if [ $(wc -l <<< "$val") -gt 1 ]; then
+                val="$(sed -e '1i\\' -e 's/^/  /' <<< "$val")"
+            fi
+            lines+=( "$var = ${val}" )
         done
         debug --offset=1 "${lines[@]}"
     fi
@@ -111,41 +223,14 @@ debug_vars() {
                         # successful debug calls
 } >&2
 
-_underline() {
-    local replacement='='
-    local text="$*"
-    while getopts "r:c:C" opt; do
-        case "$1" in
-            -r|-c)      # (r)eplacement / (c)haracter
-                replacement="${OPTARG:0:1}"
-                text="$*"
-                ;;
-            -C)         # (C)apitalize
-                text="$(tr [a-z] [A-Z] <<< "$text")"
-                ;;
-            *)
-                
-                ;;
-        esac
-    done
-    cat <<-UNDERLINE
-	$*
-	$(tr [:print:] [${replacement}*] <<< "$*")
-	UNDERLINE
-}
-
-_get_file_info() {
-    # Sets global variables for internal use by the calling script
-    local file="$(get_path "${BASH_SOURCE[1]}")"
-    local dir="$(dirname "${file}")"
-    local basename="$(basename "${file}")"
-    local name="$(sed 's/\s/_/g' <<< "${basename%%.*}" | tr [a-z] [A-Z])"
-    typeset -n export_name="__${name}_NAME__"
-    typeset -n export_dir="__${name}_DIR__"
-    typeset -n export_file="__${name}_FILE__"
-    export_name="$basename"
-    export_dir="$dir"
-    export_file="$file"
+usage() {
+    usage_fn="_$(_get_script_name | tr [A-Z] [a-z])_usage"
+    if command -v "${usage_fn}" >/dev/null; then
+        ${usage_fn}
+        return $?
+    else
+        return 25
+    fi
 }
 
 _script_id() {
