@@ -47,7 +47,7 @@ usage() {
 	    -h      Display this message
 	    -D      Debug mode
 	USAGE
-    exit $(( $1 ))
+    exit $status
 }
 
 resolve_symlinks() {
@@ -104,9 +104,8 @@ main() {
                 ;;
         esac
     done
-    FILE=`resolve_symlinks "$FILE"` || {
+    FILE=`resolve_symlinks "$FILE"` ||
         die "Couldn't resolve path '%s'" "$FILE"
-    }
     debug FILE OUTFILE INTERACTIVE QUIET DEBUG
     exit $?
 }
