@@ -1,7 +1,10 @@
 #!/bin/bash
+# Credit for `parse_yaml`:
 # https://stackoverflow.com/questions/5014632/how-can-i-parse-a-yaml-file-from-a-linux-shell-script
 
 parse_yaml() {
+    # Reads a YAML file and assigns Bash variables based on parsed values
+    # TODO: Reimplement this to use Bash arrays and associative arrays
     local prefix=$2
     local s='[[:space:]]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034')
     sed -ne "s|^\($s\):|\1|" \
