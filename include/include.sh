@@ -188,15 +188,26 @@ debug() {
                 ;;
             *) ;;
         esac
-        if (( ${#FUNCNAME[@]} - 3 - offset > __DEBUG_DEPTH__ )); then
+        local source="${BASH_SOURCE[$(( 1 + offset ))]}"
+        local func="${FUNCNAME[$(( 1 + offset ))]}"
+        local lineno="${BASH_LINENO[$(( 0 + offset ))]}"
+        # "Allowed" functions: those within __DEBUG_DEPTH__ of the end of the
+        # function stack (offset by 2 because of `main`)
+        # This ensures that debug messages are printed on recursive calls of
+        # arbitrary depth, despite the restriction imposed by __DEBUG_DEPTH__
+        local -a allowed_funcs=(
+            "${FUNCNAME[@]: $((-__DEBUG_DEPTH__-2)): ${__DEBUG_DEPTH__}}"
+        )
+        if (( ${#FUNCNAME[@]} - 3 - offset > __DEBUG_DEPTH__ )) &&
+            [[ ! " ${allowed_funcs[@]} " = *\ ${func}\ * ]]
+        then
+            # echo "Debug bailed due to insufficient depth" >&2
+            # printf "    Allowed funcs: '%s'\n" "${allowed_funcs[@]}" >&2
+            # printf "    Debug caller: '%s'\n" "$func" >&2
             return $status
         else
-            local source="${BASH_SOURCE[$(( 1 + offset ))]}"
-            local func="${FUNCNAME[$(( 1 + offset ))]}"
-            local lineno="${BASH_LINENO[$(( 0 + offset ))]}"
-
             # Debug header
-            echo "DEBUG: ${source} --> ${func} @${lineno}:"
+            error "DEBUG: ${source} --> ${func} @${lineno}:"
 
             # Use `error` to print formatted messages to stderr
             error -i 4 "$@"
