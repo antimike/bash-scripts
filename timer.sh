@@ -15,91 +15,79 @@
 
 # TODO: Add option to allow "silent" or long-term timers using `at`
 
-__FILE__="$(realpath "${BASH_SOURCE[0]}")"
-__DIR__="$(dirname "${__FILE__}")"
-SPEAK_SCR="${__DIR__}/speak.sh"
-BEEP_SCR="${__DIR__}/beeper.sh"
-DEBUG="${DEBUG+x}"
-DOC_SCR="${__DIR__}/docstring.sh"
+if [ -f "$BASH_INCLUDE" ]; then
+    . "$BASH_INCLUDE"
+fi
 
-EOL_CHAR='\033[0K'      # Used to print the timer value
-                        # to the same line repeatedly.
+# __FILE__="$(realpath "${BASH_SOURCE[0]}")"
+# __TIMER_DIR__="$(dirname "${__FILE__}")"
+# DEBUG="${DEBUG+x}"
+SPEAK_SCR="${__TIMER_DIR__}/utils/IO/speak.sh"
+BEEP_SCR="${__TIMER_DIR__}/utils/IO/beeper.sh"
+DOC_SCR="${__TIMER_DIR__}/utils/dev/docstring.sh"
+
+EOL_CHAR='\033[0K'      # Used to print the timer value to the same line
+                        # repeatedly.
 typeset -i MAX_TIME=$(( 24*3600 )) # The timer can run for a maximum of one day
 typeset -i TIME=0
 typeset BEEP="-F 440 -D 1"
 typeset NOTIFY_SPEAK=
 typeset NOTIFY_PRINT=
 
-die() {
-    printf "$@" && echo && exit 1 || exit -1
-}
-
-debug() {
-    if [[ -z "${DEBUG}" ]]; then
-        return 0
-    else
-        printf "DEBUG: " >&2
-        printf "$@" >&2 && echo >&2 && return 0 || exit -2
-    fi
-}
-
 usage() {
     cat <<-USAGE
-	
+
 	${__NAME__}
 	$(tr [:graph:] [=*] <<< ${__NAME__})
 	A simple countdown utility, designed for setting alarms.
-	
+
 	USAGE:
 	`${DOC_SCR} ${__FILE__}`
-	
+
 	USAGE
 }
 
 display_countdown() {
-    local secs=$(( TIME ))
     local format="${1:-%T}"
-    debug "Displaying countdown for T = %s s with format %s" \
-        "${secs}" "${format}"
+    debug_vars secs format
     while (( TIME > 0 )); do
-        printf "%s${EOL_CHAR}\r" "$(date -u "+${format}" -d@$(( TIME-- )))"
+        printf "%s${EOL_CHAR}\r" "$(date -u "+${format}" -d@$(( TIME )))"
+        let TIME-=1
+        sleep 1
     done
     debug "Countdown finished"
     return 0
 }
 
 human_time() {
-    debug "Entering function 'human_time' with args '$*' and globals TIME = ${TIME}"
     local secs=$(( TIME ))
     local mins=$(( TIME / 60 )) && (( TIME %= 60 ))
     local hours=$(( mins / 60 )) && (( mins %= 60 ))
-    debug "TIME = %s, mins = %s, hours = %s" "${TIME}" "${mins}" "${hours}"
+    debug_vars TIME mins hours
     set -- "$hours hours" "$mins minutes" "$TIME seconds"
-    debug "set -- $*"
     while num=${1%% *} && (( num == 0 )) && (( $# )); do
         shift
     done
     local sep=; (( $# > 2 )) && sep=', and ' || sep=' and '
     local ret="$( printf "${sep}%s" "$@" )"
     ret=`echo "${ret:${#sep}}" | rev | sed 's/dna //2g' | rev`
-    debug "ret = %s; echoed: %s" "${ret}" "${ret:-0 seconds}"
+    debug_vars ret
     echo "${ret:-0 seconds}"
     return 0
 }
 
-notify() {
-    debug "Entering function 'nofity' with args '$*'"
+_timer_notify() {
     local human=`human_time`
     local speak="$(printf "$1" "$human")"
     local print="$(printf "$2" "$human")"
-    debug "human = '%s', speak = '%s', print = '%s'" \
-        "${human}" "${speak}" "${print}"
+    # debug "human = '%s', speak = '%s', print = '%s'" \
+    #     "${human}" "${speak}" "${print}"
     if [[ -n "$print" ]]; then
         echo "$print"
     fi
     if [[ -n "$speak" ]]; then
-        debug "Calling SPEAK_SCR: '%s' with arg '%s'" \
-            "${SPEAK_SCR}" "${speak}"
+        # debug "Calling SPEAK_SCR: '%s' with arg '%s'" \
+        #     "${SPEAK_SCR}" "${speak}"
         eval $SPEAK_SCR "$speak"
     fi
     return 0
@@ -110,7 +98,7 @@ convert_clocktime() {
     local conversion=1
     local -a parsed; IFS=':' read -r -a parsed <<< "$*"
     if (( ${#parsed[@]} > 3 )); then
-        die "Failed to parse user-provided duration string %s" "$*"
+        die 1 "Failed to parse user-provided duration string %s" "$*"
     fi
     while (( ${#parsed[@]} )); do
         (( sum += conversion * ${parsed[-1]} ))
@@ -141,19 +129,15 @@ args_to_secs() {
 }
 
 main() {
-    debug "Received: %s" "$*"
     local fmt='%T'
+    local time=10
     while getopts ":t:p:s:f:b:BD" opt; do
         case "$opt" in
         t)      # Total time
-            TIME=$(( args_to_secs "$OPTARG" ))
-            debug "TIME = %s" "$TIME"
-            (( TIME > MAX_TIME )) \
-                && die "Cannot set timer for longer than 1 day"
+            time="$OPTARG"
             ;;
         p)      # Print message
             NOTIFY_PRINT="$OPTARG"
-            debug "NOTIFY_PRINT = ${NOTIFY_PRINT}"
             ;;
         s)      # Spoken message
             NOTIFY_SPEAK="$OPTARG"
@@ -176,15 +160,21 @@ main() {
             ;;
         esac
     done
-    debug "Args: -t=%s, -p=%s, -s=%s, -f=%s, -b=%s" \
-        "$TIME" "$NOTIFY_PRINT" "$NOTIFY_SPEAK" "$FORMAT" "$BEEP"
+    shift $(( OPTIND - 1 )) && OPTIND=1
+    time="$1"
+    debug_vars time TIME NOTIFY_PRINT NOTIFY_SPEAK FORMAT BEEP
+    debug "Positional args: $@"
+
+    TIME=$(( $(args_to_secs "$time") ))
+    (( TIME > MAX_TIME )) && die 2 "Cannot set timer for longer than 1 day"
+
     display_countdown "$fmt" && {
         if [[ -n "${BEEP+x}" ]]; then
             debug "Countdown completed successfully"
             eval $BEEP_SCR $BEEP && \
                 debug "Beep completed successfully"
         fi
-        notify $NOTIFY_SPEAK $NOTIFY_PRINT
+        _timer_notify $NOTIFY_SPEAK $NOTIFY_PRINT
         return $?
     } || {
         die "Unknown error, countdown failed"
