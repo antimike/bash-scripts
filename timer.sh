@@ -19,9 +19,6 @@ if [ -f "$BASH_INCLUDE" ]; then
     . "$BASH_INCLUDE"
 fi
 
-# __FILE__="$(realpath "${BASH_SOURCE[0]}")"
-# __TIMER_DIR__="$(dirname "${__FILE__}")"
-# DEBUG="${DEBUG+x}"
 SPEAK_SCR="${__TIMER_DIR__}/utils/IO/speak.sh"
 BEEP_SCR="${__TIMER_DIR__}/utils/IO/beeper.sh"
 DOC_SCR="${__TIMER_DIR__}/utils/dev/docstring.sh"
@@ -33,16 +30,17 @@ typeset -i TIME=0
 typeset BEEP="-F 440 -D 1"
 typeset NOTIFY_SPEAK=
 typeset NOTIFY_PRINT=
+typeset NOTIFY_SEND=
 
-usage() {
+_timer_usage() {
+    debug_vars __TIMER_NAME__ __TIMER_FILE__ DOC_SCR
     cat <<-USAGE
 
-	${__NAME__}
-	$(tr [:graph:] [=*] <<< ${__NAME__})
+	$(_underline ${__TIMER_NAME__})
 	A simple countdown utility, designed for setting alarms.
 
 	USAGE:
-	`${DOC_SCR} ${__FILE__}`
+        $(${DOC_SCR} -f ${__TIMER_FILE__})
 
 	USAGE
 }
@@ -80,15 +78,16 @@ _timer_notify() {
     local human=`human_time`
     local speak="$(printf "$1" "$human")"
     local print="$(printf "$2" "$human")"
-    # debug "human = '%s', speak = '%s', print = '%s'" \
-    #     "${human}" "${speak}" "${print}"
+    local nsend="$(printf "$3" "$human")"
+    debug_vars human speak print nsend
     if [[ -n "$print" ]]; then
         echo "$print"
     fi
     if [[ -n "$speak" ]]; then
-        # debug "Calling SPEAK_SCR: '%s' with arg '%s'" \
-        #     "${SPEAK_SCR}" "${speak}"
         eval $SPEAK_SCR "$speak"
+    fi
+    if [[ -n "$nsend" ]]; then
+        notify-send "$nsend"
     fi
     return 0
 }
@@ -131,13 +130,17 @@ args_to_secs() {
 main() {
     local fmt='%T'
     local time=10
-    while getopts ":t:p:s:f:b:BD" opt; do
+    while getopts ":t:p:n:s:f:b:BD" opt; do
         case "$opt" in
         t)      # Total time
             time="$OPTARG"
             ;;
         p)      # Print message
             NOTIFY_PRINT="$OPTARG"
+            ;;
+        n)
+                # Redirect message to notify-send
+            NOTIFY_SEND="$OPTARG"
             ;;
         s)      # Spoken message
             NOTIFY_SPEAK="$OPTARG"
@@ -162,19 +165,18 @@ main() {
     done
     shift $(( OPTIND - 1 )) && OPTIND=1
     time="$1"
-    debug_vars time TIME NOTIFY_PRINT NOTIFY_SPEAK FORMAT BEEP
+    debug_vars time TIME NOTIFY_PRINT NOTIFY_SPEAK NOTIFY_SEND FORMAT BEEP
     debug "Positional args: $@"
+    exit 0
 
     TIME=$(( $(args_to_secs "$time") ))
     (( TIME > MAX_TIME )) && die 2 "Cannot set timer for longer than 1 day"
 
     display_countdown "$fmt" && {
         if [[ -n "${BEEP+x}" ]]; then
-            debug "Countdown completed successfully"
-            eval $BEEP_SCR $BEEP && \
-                debug "Beep completed successfully"
+            eval $BEEP_SCR $BEEP
         fi
-        _timer_notify $NOTIFY_SPEAK $NOTIFY_PRINT
+        _timer_notify "$NOTIFY_SPEAK" "$NOTIFY_PRINT" "$NOTIFY_SEND"
         return $?
     } || {
         die "Unknown error, countdown failed"
