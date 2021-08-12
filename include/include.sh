@@ -182,7 +182,7 @@ debug() {
         local format='%s\n'
         case "$1" in
             --offset=*)
-                let offset+="${1#--offset=}" 2>/dev/null || 
+                let offset+="${1#--offset=}" 2>/dev/null ||
                     echo "DEBUG: Bad callstack offset passed to 'debug'" >&2 &&
                 shift
                 ;;
@@ -222,18 +222,17 @@ debug_vars() {
     # standard debug message including the source filename, function name, and
     # line number
     local -i status=$?
-    local val=
     if [ -n "${DEBUG+x}" ]; then
         local -a lines=( )
         for var in "$@"; do
-            val="${!var}"
-            if [ $(wc -l <<< "$val") -gt 1 ]; then
-                val="$(
-                    sed -e '1i\\' <<< "$val" | 
+            local text="$(_prettyprint_var $var)"
+            if [ $(wc -l <<< "$text") -gt 1 ]; then
+                text="$(
+                    sed -e '1i\\' <<< "$text" |
                         sed -e '1!s/^/|  /'
                                             )"
             fi
-            lines+=( "$var = ${val}" )
+            lines+=( "${text}" )
         done
         debug --offset=1 "${lines[@]}"
     fi
@@ -263,17 +262,33 @@ _script_id() {
 
 _prettyprint_var() {
     # Pretty-prints the value of a passed variable name, including arrays
-    # Not currently used
-    # TODO: Finish implementing this to support all variable types
     local -n ref="$1"
-    read -r -d '' sed_script <<-SED
-	s/^\s\+//   # Remove initial whitespace
-	s/^\([^\=]\+\)\=(/\1\=(\n/      # Newline after open-paren
-        :LBREAK
-	s/\(\[[A-Za-z]\+\]\=\"[^"]*\"\) /\t\1\n/g   # Newline after each assoc. element
-	SED
-    printf '\n%s\n' "$(declare -p "${!ref}")" \
-        | sed -e "${sed_script}" | sed -e 's/^/\t/'
+
+    # Iterate over `declare` flags
+    # TODO: Figure out how to handle chained refs (the code below will
+    # dereference all intermediate ref variables)
+    read -r -d '' info < <(declare -p "${!ref}" 2>/dev/null) 
+    while read char; do
+        case "$char" in
+            A|a)    # Array types are printed differently
+                local type="array"
+                ;;
+            *)
+                continue
+                ;;
+        esac
+    done < <(echo "$info" | head -1 | cut -f2 -d' ' | grep -o .)
+    if [ "$type" = "array" ]; then
+        local lhs="${info%%(*}"
+        echo "${info%%(*}("
+        for key in "${!ref[@]}"; do
+            printf '\t%s\n' "[${key}]=${ref[${key}]}"
+        done
+        echo ")"
+    else
+        echo "$info"
+    fi
+    return $?
 }
 
 _get_docstring() {
