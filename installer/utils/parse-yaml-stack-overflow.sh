@@ -5,7 +5,15 @@
 parse_yaml() {
     # Reads a YAML file and assigns Bash variables based on parsed values
     # TODO: Reimplement this to use Bash arrays and associative arrays
-    local prefix=$2
+    # Can use variable names as values in associative arrays; `typeset -p` can
+    # be used to determine when text should be dereferenced
+    # Primary use-cases:
+    # - Tags: Need to get a Bash array of tags from YAML file
+    #       - Tags at arbitrary depth?
+    #       - Special (i.e., non-YAML) syntax for tags?
+    # - 
+    local prefix=$2     # To prepend to variable names (useful for avoiding
+                        # namespace conflicts)
     local s='[[:space:]]*' w='[a-zA-Z0-9_]*' fs=$(echo @|tr @ '\034')
     sed -ne "s|^\($s\):|\1|" \
         -e "s|^\($s\)\($w\)$s:$s[\"']\(.*\)[\"']$s\$|\1$fs\2$fs\3|p" \
