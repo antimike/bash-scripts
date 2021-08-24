@@ -1,21 +1,36 @@
-subdirs = include misc utils
-DESTDIR = /usr/local/bin
-scripts = $(wildcard *.sh)
-paths=$(foreach script, $(scripts), $(realpath $(script)) )	# Trailing space
-names=$(foreach script, $(scripts), $(basename $(script)))
-dests=$(foreach name, $(names), $(DESTDIR)/$(name))
-cmd=sudo ln -s # Trailing space
-cmds=$(foreach pair, $(join $(paths), $(dests)), $(cmd) $(pair); )
+PROJECT_NAME = antimike-bash-scripts
+PROJECT_DIR = `pwd`
 
+INSTALL_DIRS = utils papis
+DEST_DIR = /usr/local/bin
+INSTALL_FILES = `find $(INSTALL_DIRS) -executable -type f -printf0 "$(PROJECT_DIR)/%f " 2>/dev/null`
+ARCHIVE = $(PROJECT_NAME).tar.gz
+SIG = $(PROJECT_NAME).asc
 
-.PHONY: all
+.PHONY : build sign clean tag release install uninstall all
+
+$(ARCHIVE) :
+	git archive --output=$(ARCHIVE) --prefix="$(PROJECT_DIR)/" HEAD
+
+build : $(ARCHIVE)
+
+sign : $(ARCHIVE)
+	gpg --sign --detach-sign --armor "$(ARCHIVE)"
+
+clean :
+	rm -f "$(ARCHIVE)" "$(SIG)"
 
 all :
-	# for script in $(scripts); do sudo ln -s "$(realpath "$$script")" "$(DESTDIR)/$${script%.*}"; done
-	# $(realpath $(scripts))
-	$(cmds)
+	$(ARCHIVE) $(SIG)
 
-clean : 
-	$(foreach dest, $(dests), sudo rm -f $(dest); )	
+tag :
+	git tag v$(VERSION)
+	git push --tags
 
+release : $(ARCHIVE) $(SIG) tag
 
+install :
+	for file in $(INSTALL_FILES); do sudo ln -s "$$file" "$(DEST_DIR)/$(basename $(file))"; done
+
+uninstall :
+	sudo rm -f $(foreach file, $(INSTALL_FILES), $(DEST_DIR)/$(basename $(file)))
