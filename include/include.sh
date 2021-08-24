@@ -37,7 +37,7 @@ _get_file_info() {
     local file="$(get_path "${BASH_SOURCE[2]}")"
     local dir="$(dirname "${file}")"
     local basename="$(basename "${file}")"
-    local name="$(sed 's/\s/_/g' <<< "${basename%%.*}" | tr [a-z] [A-Z])"
+    local name="$(sed 's/[^a-zA-Z0-9]/_/g' <<< "${basename%%.*}" | tr [a-z] [A-Z])"
     typeset -n export_name="__${name}_NAME__"
     typeset -n export_dir="__${name}_DIR__"
     typeset -n export_file="__${name}_FILE__"

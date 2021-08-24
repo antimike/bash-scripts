@@ -38,14 +38,18 @@ usage() {
     unset prefix
     unset suffix
     local debug=
+    local file="${__FILE__}"
     local remove_blank_top=
-    while getopts ":p:s:D" opt; do
+    while getopts ":p:s:f:D" opt; do
         case "${opt}" in
             p)
                 local prefix="${OPTARG}"
                 ;;
             s)
                 local suffix="${OPTARG}"
+                ;;
+            f)
+                file="${OPTARG}"
                 ;;
             D)
                 debug=1
@@ -58,46 +62,47 @@ usage() {
     done
     shift $(( OPTIND - 1 )) && OPTIND=1
     read -r -d '' remove_blank_top <<-"SED"
-	:a
-	    /[^\s]/bb
-	    d
-	:b
-	    p;n;bb
+		:a
+		    /[^\s]/bb
+		    d
+		:b
+		    p;n;bb
 	SED
     [[ -n "${prefix+x}" ]] && echo "${prefix}"
-    _tabularize "$(_get_helptext_lines)" |
+    _tabularize "$(_get_helptext_lines "${file}")" |
         sed -n "${remove_blank_top}" | tac |
         sed -n "${remove_blank_top}" | tac
     [[ -n "${suffix+x}" ]] && echo "${suffix}"
 }
 
 _get_helptext_lines() {
+    local file="${1:-${__FILE__}}"
     local script=
     read -r -d '' script <<-"SED"
-	${z;x;bP}
-	/^#+/bD
-	d
-	:D
-	    # Remove first "word" of '#' plus non-alphanumeric chars
-	    s/^#[@\$&\*!+]*//
-	    # Begin new cycle if no leading '#' found
-	    T
-	    # Trim leading whitespace, leaving tabs
-	    s/^ *//
-	    # Hold and begin new cycle
-	    H;n;bD
-	:P
-	    G
-	    # Apply indent (multiline mode)
-	    s/^\(\s*\)>/\1	/M
-	    tP
-	    # Tabularize
-	    x;G
-	    s/^\(.*|.*\)|$/column -t -s'|' <<< '\1'/e
-	    # Print and quit
-	    p;q
+		${z;x;bP}
+		/^#+/bD
+		d
+		:D
+		    # Remove first "word" of '#' plus non-alphanumeric chars
+		    s/^#[@\$&\*!+]*//
+		    # Begin new cycle if no leading '#' found
+		    T
+		    # Trim leading whitespace, leaving tabs
+		    s/^ *//
+		    # Hold and begin new cycle
+		    H;n;bD
+		:P
+		    G
+		    # Apply indent (multiline mode)
+		    s/^\(\s*\)>/\1	/M
+		    tP
+		    # Tabularize
+		    x;G
+		    s/^\(.*|.*\)|$/column -t -s'|' <<< '\1'/e
+		    # Print and quit
+		    p;q
 	SED
-     cat "${__FILE__}" | sed -n "${script}"
+     cat "${file}" | sed -n "${script}"
 }
 
 _tabularize() {
