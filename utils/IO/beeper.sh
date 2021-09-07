@@ -1,7 +1,9 @@
 #!/bin/bash
 # Requires `sox` (for `play` command)
 
-source "${SOURCE_DIR}/bash-scripts/include/include.sh"
+declare -r __FILE__="$(readlink -m "${BASH_SOURCE[0]}")"
+declare -r __DIR__="$(dirname "${__FILE__}")"
+source "${__DIR__}/../../include/include.sh"
 
 typeset FREQUENCY
 typeset DURATION
