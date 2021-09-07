@@ -1,4 +1,5 @@
 #!/bin/bash
+# Requires `sox` (for `play` command)
 
 source "${SOURCE_DIR}/bash-scripts/include/include.sh"
 
