@@ -3,7 +3,7 @@ PROJECT_DIR = `pwd`
 
 INSTALL_DIRS = utils papis
 DEST_DIR = /usr/local/bin
-INSTALL_FILES = `find $(INSTALL_DIRS) -executable -type f -printf0 "$(PROJECT_DIR)/%f " 2>/dev/null`
+INSTALL_FILES = `find $(INSTALL_DIRS) -executable -type f 2>/dev/null`
 ARCHIVE = $(PROJECT_NAME).tar.gz
 SIG = $(PROJECT_NAME).asc
 
@@ -30,7 +30,7 @@ tag :
 release : $(ARCHIVE) $(SIG) tag
 
 install :
-	for file in $(INSTALL_FILES); do sudo ln -s "$$file" "$(DEST_DIR)/$(basename $(file))"; done
+	for file in $(INSTALL_FILES); do sudo ln -s "$$(realpath $$file)" "$(DEST_DIR)/$$(basename "$${file%.*}")"; done
 
 uninstall :
-	sudo rm -f $(foreach file, $(INSTALL_FILES), $(DEST_DIR)/$(basename $(file)))
+	for file in $(INSTALL_FILES); do sudo rm -f "$(DEST_DIR)/$$(basename "$${file%.*}")"; done
